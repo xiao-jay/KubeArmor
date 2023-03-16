@@ -1,94 +1,81 @@
 name: ci-test-ginkgo
-
 on:
   push:
-    branches: [main]
-    paths:
-      - "KubeArmor/**"
-      - "tests/**"
-      - "protobuf/**"
-      - ".github/workflows/ci-test-ginkgo.yml"
-  pull_request:
-    branches: [main]
-    paths:
-      - "KubeArmor/**"
-      - "tests/**"
-      - "protobuf/**"
-      - ".github/workflows/ci-test-ginkgo.yml"
+    branches: [ci-test]
+
+
 
 jobs:
-  build:
-    name: Auto-testing Framework / ${{ matrix.os }} / ${{ matrix.runtime }}
-    runs-on: ${{ matrix.os }}
-    env:
-      RUNTIME: ${{ matrix.runtime }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-20.04]
-        runtime: ["docker", "containerd", "crio"]
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: true
+     build:
+       name: Auto-testing Framework / ${{ matrix.os }} / ${{ matrix.runtime }}
+       runs-on: ${{ matrix.os }}
+       env:
+         RUNTIME: ${{ matrix.runtime }}
+       strategy:
+         fail-fast: false
+         matrix:
+           os: [ubuntu-20.04]
+           runtime: ["docker", "containerd", "crio"]
+       steps:
+         - uses: actions/checkout@v3
+           with:
+             submodules: true
+         - uses: actions/setup-go@v3
+           with:
+             go-version: v1.18
+         - name: Install the latest LLVM toolchain
+           run: ./.github/workflows/install-llvm.sh
+         - name: Compile libbpf
+           run: ./.github/workflows/install-libbpf.sh
+         - name: Setup a Kubernetes environment
+           run: ./.github/workflows/install-k3s.sh
+         - name: Install an annotation controller
+           run: ./.github/workflows/install-annotation-controller.sh
 
-      - uses: actions/setup-go@v3
-        with:
-          go-version: v1.18
+         - name: Generate KubeArmor artifacts
+           run: GITHUB_SHA=$GITHUB_SHA ./KubeArmor/build/build_kubearmor.sh
 
-      - name: Install the latest LLVM toolchain
-        run: ./.github/workflows/install-llvm.sh
+         - name: Run KubeArmor
+           run: |
+             kubectl apply -f deployments/CRD
+             kubectl apply -f ./KubeArmor/build/kubearmor-test-${{ matrix.runtime }}.yaml
+             sleep 50
+             kubectl get pods -A
+             kubectl get pod -l kubearmor-app=kubearmor -n kube-system -oyaml
+             kubectl describe pod -l kubearmor-app=kubearmor -n kube-system 
+             kubectl logs  -l kubearmor-app=kubearmor -n kube-system 
+             kubectl wait --for=condition=ready --timeout=5m -n kube-system pod -l kubearmor-app=kubearmor
+             kubectl get pods -A
+         - name: Test KubeArmor using Ginkgo
+           run: |
+             go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+             make -C tests/
+           timeout-minutes: 30
 
-      - name: Compile libbpf
-        run: ./.github/workflows/install-libbpf.sh
+         - name: Get karmor sysdump
+           if: ${{ failure() }}
+           run: |
+             curl -sfL http://get.kubearmor.io/ | sudo sh -s -- -b /usr/local/bin
+             mkdir -p /tmp/kubearmor/ && cd /tmp/kubearmor && karmor sysdump
+         - name: Archive log artifacts
+           if: ${{ failure() }}
+           uses: actions/upload-artifact@v3
+           with:
+             name: kubearmor.logs
+             path: |
+               /tmp/kubearmor/
+               /tmp/kubearmor.*
+         - name: Measure code coverage
+           if: ${{ always() }}
+           run: |
+             go install github.com/modocache/gover@latest
+             gover
+             go tool cover -func=gover.coverprofile
+           working-directory: KubeArmor
+           env:
+             GOPATH: /home/runner/go
 
-      - name: Setup a Kubernetes environment
-        run: ./.github/workflows/install-k3s.sh
-
-      - name: Install an annotation controller
-        run: ./.github/workflows/install-annotation-controller.sh
-
-      - name: Run kubectl proxy
-        run: kubectl proxy &
-
-      - name: Run KubeArmor in background
-        run: |
-          make -C KubeArmor/ run &
-          bash -c 'for((i=0;i<300;i++)); do cnt=$(ps -e | grep kubearmor | wc -l); [[ $cnt -gt 0 ]] && echo "Kubearmor is running" && break; sleep 1; done'
-        timeout-minutes: 5
-
-      - name: Test KubeArmor using Ginkgo
-        run: |
-          go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-          make -C tests/
-        timeout-minutes: 30
-
-      - name: Get karmor sysdump
-        if: ${{ failure() }}
-        run: |
-          curl -sfL http://get.kubearmor.io/ | sudo sh -s -- -b /usr/local/bin
-          mkdir -p /tmp/kubearmor/ && cd /tmp/kubearmor && karmor sysdump
-
-      - name: Archive log artifacts
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v3
-        with:
-          name: kubearmor.logs
-          path: |
-            /tmp/kubearmor/
-            /tmp/kubearmor.*
-
-      - name: Measure code coverage
-        if: ${{ always() }}
-        run: |
-          go install github.com/modocache/gover@latest
-          gover
-          go tool cover -func=gover.coverprofile
-        working-directory: KubeArmor
-        env:
-          GOPATH: /home/runner/go
-
-      - uses: codecov/codecov-action@v3
-        if: ${{ always() }}
-        with:
-          files: ./KubeArmor/gover.coverprofile
+         - uses: codecov/codecov-action@v3
+           if: ${{ always() }}
+           with:
+             files: ./KubeArmor/gover.coverprofile
