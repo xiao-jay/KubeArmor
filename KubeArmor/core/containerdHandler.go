@@ -133,7 +133,7 @@ func (ch *ContainerdHandler) GetContainerInfo(ctx context.Context, containerID s
 
 	container.ContainerID = res.Container.ID
 	container.ContainerName = res.Container.ID[:12]
-
+	fmt.Printf("res.Container.ID:%+v, %+v\n", res.Container.ID, res)
 	container.NamespaceName = "Unknown"
 	container.EndPointName = "Unknown"
 
