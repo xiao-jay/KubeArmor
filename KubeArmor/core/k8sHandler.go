@@ -104,16 +104,20 @@ func NewK8sHandler() *K8sHandler {
 // InitK8sClient Function
 func (kh *K8sHandler) InitK8sClient() bool {
 	if !kl.IsK8sEnv() { // not Kubernetes
+		fmt.Println("no k8s")
 		return false
 	}
 
 	if kh.K8sClient == nil {
+		fmt.Println("1")
 		if kl.IsInK8sCluster() {
 			return kh.InitInclusterAPIClient()
 		}
+		fmt.Println("2")
 		if kl.IsK8sLocal() {
 			return kh.InitLocalAPIClient()
 		}
+		fmt.Println("3")
 		return false
 	}
 
