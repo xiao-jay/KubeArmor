@@ -410,9 +410,9 @@ func (mon *SystemMonitor) UpdateLogs() {
 				log.Operation = "Network"
 				log.Resource = "remoteip=" + sockAddr["sin_addr"] + " port=" + sockAddr["sin_port"] + " protocol=" + protocol
 				if msg.ContextSys.EventID == TCPConnect || msg.ContextSys.EventID == TCPConnectv6 {
-					log.Data = "kprobe=tcp_connect"
+					log.Data = "kprobe=tcp_connect, eventID=" + strconv.Itoa(int(msg.ContextSys.EventID))
 				} else {
-					log.Data = "kprobe=tcp_accept"
+					log.Data = "kprobe=tcp_accept, eventID=" + strconv.Itoa(int(msg.ContextSys.EventID))
 				}
 				log.Data = log.Data + " domain=" + sockAddr["sa_family"]
 

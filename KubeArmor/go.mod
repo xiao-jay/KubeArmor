@@ -19,6 +19,7 @@ replace (
 	github.com/kubearmor/KubeArmor/deployments => ../deployments
 	github.com/kubearmor/KubeArmor/pkg/KubeArmorController => ../pkg/KubeArmorController
 	github.com/kubearmor/KubeArmor/protobuf => ../protobuf
+	github.com/optiopay/kafka => github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
 )
 
 require (
