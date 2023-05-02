@@ -110,9 +110,9 @@ func (kh *K8sHandler) InitK8sClient() bool {
 
 	if kh.K8sClient == nil {
 		fmt.Println("1")
-		if kl.IsInK8sCluster() {
-			return kh.InitInclusterAPIClient()
-		}
+		//if kl.IsInK8sCluster() {
+		//	return kh.InitInclusterAPIClient()
+		//}
 		fmt.Println("2")
 		if kl.IsK8sLocal() {
 			return kh.InitLocalAPIClient()
